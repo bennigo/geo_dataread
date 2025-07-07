@@ -13,6 +13,8 @@ dependencies = []
 
 [project.scripts]
 geo-dataread = "geo_dataread:main"
+gps-savetimes = "geo_dataread.gps_savetimes:main"
+gps-displacemnts = "geo_dataread.gps_displ:main"
 
 [build-system]
 requires = ["hatchling"]

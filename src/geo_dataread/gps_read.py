@@ -17,24 +17,17 @@ from typing import List, Optional, Union
 import geofunc.geofunc as gf
 import numpy as np
 import pandas as pd
-
-# from cparser import ConfigParser
-# custom modules
-# import cparser as cp
-# from gtimes.timefunc import shifTime, TimetoYearf
-# import glob
-# import shutil
-# import sys
-#
-# import cparser as cp
-# import pandas as pd
-# from pandas import read_table
 from gps_parser import ConfigParser
-from gtimes.timefunc import TimefromYearf, TimetoYearf, convfromYearf, currYearfDate
+from gtimes.timefunc import (
+    TimefromYearf,
+    TimetoYearf,
+    convfromYearf,
+    currYearfDate,
+    round_to_hour,
+)
 from scipy import optimize
 
 import geo_dataread.gps_read as gdrgps
-
 
 #
 # time series filtering
@@ -573,8 +566,8 @@ def gamittoFile(neudata, outfile, mm=True, ref="plate", dstring=None, outformat=
 
     # formatting time column
     if dstring == "yearf":
-        timef = "{0: 8.4f}\t"
-        timeh = "#\"yyyy.dddd'     "
+        timef = "{0: 8.5f}\t"
+        timeh = "#\"yyyy.ddddd'    "
     else:
         timef = " {0:s}\t"
         timeh = "#yyyy/mm/dd hh:mm:ss.sss          "
@@ -604,23 +597,30 @@ def gamittoFile(neudata, outfile, mm=True, ref="plate", dstring=None, outformat=
                 timef + "{1: 7.5f} {2: 7.5f} {3: 7.5f}\t{4: 7.5f} {5: 7.5f} {6: 7.5f}"
             )
 
-    with open(outfile, "w") as f:
+    if outfile == sys.stdout:
+        f = outfile
         print("printing header and file \n", header, file=f)
 
-        # applying formatting to each column of the neudata file
-        for x in neudata:
-            print(
-                formatstr.format(
-                    x["yearf"],
-                    x["data[0]"],
-                    x["data[1]"],
-                    x["data[2]"],
-                    x["Ddata[0]"],
-                    x["Ddata[1]"],
-                    x["Ddata[2]"],
-                ),
-                file=f,
-            )
+    else:
+        f = open(outfile, "w")
+        print("printing header and file \n", header, file=f)
+
+    # applying formatting to each column of the neudata file
+    for x in neudata:
+        print(
+            formatstr.format(
+                x["yearf"].decode() if isinstance(x["yearf"], bytes) else x["yearf"],
+                x["data[0]"],
+                x["data[1]"],
+                x["data[2]"],
+                x["Ddata[0]"],
+                x["Ddata[1]"],
+                x["Ddata[2]"],
+            ),
+            file=f,
+        )
+    if f is not sys.stdout:
+        f.close()
 
 
 def savedisp(datadict, fname=None, header=""):
@@ -1630,7 +1630,8 @@ def gtoNEU(yearf, data, Ddata, dstring=None):
             ],
         )
     else:
-        yearf = convfromYearf(yearf, dstring)
+        yearf = [round_to_hour(dt) for dt in convfromYearf(yearf, dstring)]
+
         NEUdata = np.array(
             list(zip(yearf, data[0], data[1], data[2], Ddata[0], Ddata[1], Ddata[2])),
             dtype=[
