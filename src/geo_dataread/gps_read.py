@@ -18,6 +18,7 @@ import geofunc.geofunc as gf
 import numpy as np
 import pandas as pd
 from gps_parser import ConfigParser
+
 from gtimes.timefunc import (
     TimefromYearf,
     TimetoYearf,
@@ -258,8 +259,8 @@ def getDetrFit(
     sta: str,
     useSTA=None,
     useFIT=None,
-    onlyperiodic=False,
-    detrfile="detrend_itrf2008.csv",
+    onlyPeriodic=False,
+    detrendFile="",
     logging_level=logging.WARNING,
 ):
     """
@@ -289,9 +290,9 @@ def getDetrFit(
     module_logger = logging.getLogger()
 
     # read the detrending file
-    north = ["nrate", "nacos", "nasin", "nscos", "nssin"]
-    east = ["erate", "eacos", "easin", "escos", "essin"]
-    up = ["urate", "uacos", "uasin", "uscos", "ussin"]
+    north = ["Nrate", "Nacos", "Nasin", "Nscos", "Nssin"]
+    east = ["Erate", "Eacos", "Easin", "Escos", "Essin"]
+    up = ["Urate", "Uacos", "Uasin", "Uscos", "Ussin"]
 
     # read the detrending file
     # headers
@@ -308,14 +309,15 @@ def getDetrFit(
     table = pd.DataFrame(data, index=[sta], columns=columns)
 
     # read the detrending file
+    if detrendFile == "":
+        detrendFile = config.getPostProcessConfig("detrendFile")
+
     try:
-        table = pd.read_csv(detrfile, index_col="STA")
+        table = pd.read_csv(detrendFile, index_col="STA")
     except pd.errors.EmptyDataError:
-        module_logger.warning("{} does not contain any data".format(detrfile))
+        module_logger.warning("{} does not contain any data".format(detrendFile))
     except FileNotFoundError:
         module_logger.warning("detrend file not found")
-
-    module_logger.info("existing detrend constant table:\n{}".format(table))
 
     # set the fit constants from the file within const variable
     try:
@@ -352,8 +354,8 @@ def getDetrFit(
         module_logger.info("new parameters for {} are:\n {}".format(sta, const))
 
     # set the linear part of the fit constants as nan for periodic only fit
-    if onlyperiodic is True:
-        const["nrate"] = const["erate"] = const["urate"] = np.nan
+    if onlyPeriodic is True:
+        const["Nrate"] = const["Erate"] = const["urate"] = np.nan
 
     return const
 
@@ -375,9 +377,9 @@ def convconst(const, pb=None):
 
     """
 
-    north = ["nrate", "nacos", "nasin", "nscos", "nssin"]
-    east = ["erate", "eacos", "easin", "escos", "essin"]
-    up = ["urate", "uacos", "uasin", "uscos", "ussin"]
+    north = ["Nrate", "Nacos", "Nasin", "Nscos", "Nssin"]
+    east = ["Erate", "Eacos", "Easin", "Escos", "Essin"]
+    up = ["Urate", "Uacos", "Uasin", "Uscos", "Ussin"]
 
     if pb:
         # const = pd.dataframe(data, index=[sta], columns=table.columns)
@@ -401,7 +403,7 @@ def convconst(const, pb=None):
         return p0
 
 
-def save_detrend_const(const, detrfile="detrend_itrf2008.csv"):
+def save_detrend_const(const, detrendFile=""):
     """
     this function saves constants in a file for detrending gps stations
 
@@ -418,26 +420,33 @@ def save_detrend_const(const, detrfile="detrend_itrf2008.csv"):
 
     """
 
-    north = ["nrate", "nacos", "nasin", "nscos", "nssin"]
-    east = ["erate", "eacos", "easin", "escos", "essin"]
-    up = ["urate", "uacos", "uasin", "uscos", "ussin"]
-    info = ["sitename", "starttime", "endtime", "useSTA", "fit"]
+    north = ["Nrate", "Nacos", "Nasin", "Nscos", "Nssin"]
+    east = ["Erate", "Eacos", "Easin", "Escos", "Essin"]
+    up = ["Urate", "Uacos", "Uasin", "Uscos", "Ussin"]
+    info = ["Sitename", "Starttime", "Endtime", "useSTA", "Fit"]
 
     columns = north + east + up + info
-
     stationlist = const.index.values
-    path = path(path.cwd(), detrfile)
-    if not path.is_file():
-        open(path, "w").close()
+
+    # read the detrending file
+    if detrendFile == "":
+        config = ConfigParser()
+        detrendFile = config.getPostProcessConfig("detrendFile")
+
+    # path = path(path.cwd(), detrendFile)
+
+    if not os.path.isfile(detrendFile):
+        open(detrendFile, "w").close()
 
     try:
-        table = pd.read_csv(detrfile, index_col="sta")
-    except pd.errors.emptydataerror:
-        table = pd.DataFrame(index=["sta"], columns=columns)
+        table = pd.read_csv(detrendFile, index_col="STA")
+    except pd.errors.EmptyDataError:
+        table = pd.DataFrame(index=["STA"], columns=columns)
 
-    if all(table.isnull().all(1)):
+    print(table)
+    if table.dropna(how="all").empty:
         print("no data in file")
-        const.to_csv(detrfile, mode="w", header=True, index_label="sta")
+        const.to_csv(detrendFile, mode="w", header=True, index_label="STA")
 
         return
 
@@ -447,11 +456,11 @@ def save_detrend_const(const, detrfile="detrend_itrf2008.csv"):
                 print("station {} already in table updating".format(stat))
                 table.loc[stat, :] = const.loc[stat]
                 print("saving the new table")
-                table.to_csv(detrfile, mode="w", header=True, index_label="sta")
+                table.to_csv(detrendFile, mode="w", header=True, index_label="STA")
             else:
                 print("stations {} are not in detrend file, adding it".format(stat))
                 table.loc[stat, :] = const.loc[stat]
-                table.to_csv(detrfile, mode="w", header=True, index_label="sta")
+                table.to_csv(detrendFile, mode="w", header=True, index_label="STA")
 
         return
 
@@ -514,6 +523,7 @@ def gamittooneuf(
     outformat=True,
     reference="ITRF2008",
     Dir=None,
+    rhour=False,
 ):
     """
     extract gamit timeseries from standard format to one file formated time string
@@ -537,7 +547,7 @@ def gamittooneuf(
     # "%y/%m/%d 12:00:00.000"
 
     neudata = gamittoNEU(
-        sta, mm=mm, ref=ref, dstring=dstring, reference=reference, Dir=Dir
+        sta, mm=mm, ref=ref, dstring=dstring, reference=reference, Dir=Dir, rhour=rhour
     )
 
     gamittoFile(neudata, outfile, mm=mm, ref=ref, dstring=dstring, outformat=outformat)
@@ -721,7 +731,7 @@ def openGlobkTimes(sta, Dir=None, tType="TOT"):
     function to import data from globk time series files into a numpy arrays
 
     dir is the directory containing the time series if left blank the default path will be the path
-    defined in the config file postprossesing.cfg, totpath
+    defined in the config file postprossesing.cfg, totDir
 
     args:
         sta: station four letter short name in captial letters
@@ -737,10 +747,12 @@ def openGlobkTimes(sta, Dir=None, tType="TOT"):
 
     config = ConfigParser()
 
+    yearf = []
+
     # loading the data
-    # first, if no dir is input, find the path in the postprocess config file in the "totpath" instance
+    # first, if no dir is input, find the path in the postprocess config file in the "totDir" instance
     if Dir is None:
-        Dir = config.getPostprocessConfig("totpath")
+        Dir = config.getPostProcessDir("totDir")
     else:  # this is still in development
         # print(f"DIR: {Dir}")
         # print( os.path.isdir(Dir) )
@@ -891,35 +903,35 @@ def compGlobkTimes(stalist="any", dirConFilePath=None, freq=None):
 
     config = ConfigParser()
 
-    # totpath = config.getPostprocessConfig('totpath')
+    # totpath = config.getPostprocessConfig('totDir')
 
     if dirConFilePath:  # for custom file
         Dirs = parsedir(dirConFilePath)
     else:  # grab paths from the postprocess.cfg file in gpsconfig directory that cparser reads into a dictionary
         Dirs = {
             "figDir": config.get_config("Configs", "figDir"),
-            "prePath": config.get_config("Configs", "prePath"),
-            "rapPath": config.get_config("Configs", "rapPath"),
-            "totPath": config.get_config("Configs", "totPath"),
+            "preDir": config.get_config("Configs", "preDir"),
+            "rapDir": config.get_config("Configs", "rapDir"),
+            "totDir": config.get_config("Configs", "totDir"),
         }
 
         print("Directory is \n", Dirs)
 
     # Reading into a string the paths
-    PrePath = Dirs["prePath"]
-    RapPath = Dirs["rapPath"]
-    TotPath = Dirs["totPath"]
+    PreDir = Dirs["preDir"]
+    RapDir = Dirs["rapDir"]
+    TotDir = Dirs["totDir"]
 
     # Setting the frequency to TOT if freq is None
     if freq == "TOT" or freq is None:
         freq = "TOT"
     else:  # setting the frequency
-        PrePath = PrePath + "_%s" % (freq)
-        RapPath = RapPath + "_%s" % (freq)
+        PreDir = PreDir + "_%s" % (freq)
+        RapDir = RapDir + "_%s" % (freq)
 
     if stalist == "any":
-        FilePreL = os.path.join(PrePath, "mb_*.dat?")
-        FileRapL = os.path.join(RapPath, "mb_*.dat?")
+        FilePreL = os.path.join(PreDir, "mb_*.dat?")
+        FileRapL = os.path.join(RapDir, "mb_*.dat?")
 
         List = glob.glob(FilePreL) + glob.glob(FileRapL)
 
@@ -1016,27 +1028,27 @@ def TieTimes(sta1, sta2, dirConFilePath=None, freq=None, tie=[None, None, None])
         # As the standard configparser works with dictionaries, use it to create the Dirs dictionaries
         Dirs = {
             "figDir": config.get_config("Configs", "figDir"),
-            "prePath": config.get_config("Configs", "prePath"),
-            "rapPath": config.get_config("Configs", "rapPath"),
-            "totPath": config.get_config("Configs", "totPath"),
+            "preDir": config.get_config("Configs", "preDir"),
+            "rapDir": config.get_config("Configs", "rapDir"),
+            "totDir": config.get_config("Configs", "totDir"),
         }
 
     # parse the paths from the Dirs dictionary
-    PrePath = Dirs["prePath"]
-    RapPath = Dirs["rapPath"]
-    TotPath = Dirs["totPath"]
+    PreDir = Dirs["predDir"]
+    RapDir = Dirs["rapdDir"]
+    TotDir = Dirs["totdDir"]
 
     # Setting the frequency to TOT if freq is None
     if freq == "TOT" or freq is None:
         freq = "TOT"
     else:
-        PrePath = PrePath + "_%s" % (freq)
-        RapPath = RapPath + "_%s" % (freq)
+        PreDir = PreDir + "_%s" % (freq)
+        RapDir = RapDir + "_%s" % (freq)
 
     # for all the stations, create the path for PreL and RapL files
     if stalist == "any":
-        FilePreL = os.path.join(PrePath, "mb_*.dat?")
-        FileRapL = os.path.join(RapPath, "mb_*.dat?")
+        FilePreL = os.path.join(PreDir, "mb_*.dat?")
+        FileRapL = os.path.join(RapDir, "mb_*.dat?")
 
         List = glob.glob(FilePreL) + glob.glob(FileRapL)
 
@@ -1132,7 +1144,7 @@ def TieTimes(sta1, sta2, dirConFilePath=None, freq=None, tie=[None, None, None])
 #     # PrePath = Dirs['prePath'] - These paths are not used for now, but can be added later
 #     # RapPath = Dirs['rapPath'] - Same case as above
 #     TieFile = Dirs["tiefile"]
-#     TotPath = Dirs["totPath"]
+#     TotPath = Dirs["totDir"]
 #
 #     if freq == "TOT" or freq is None:
 #         freq = "TOT"
@@ -1155,8 +1167,8 @@ def TieTimes(sta1, sta2, dirConFilePath=None, freq=None, tie=[None, None, None])
 #     print(const)
 #
 #     for axes in range(1, 4):
-#         TotFile1 = os.path.join(TotPath, "mb_%s_%s.dat%s" % (sta1, freq, axes))
-#         TotFile2 = os.path.join(TotPath, "mb_%s_%s.dat%s" % (sta2, freq, axes))
+#         TotFile1 = os.path.join(TotDir, "mb_%s_%s.dat%s" % (sta1, freq, axes))
+#         TotFile2 = os.path.join(TotDir, "mb_%s_%s.dat%s" % (sta2, freq, axes))
 #         print("Concating all the %s data to %s" % (sta1, TotFile2))
 #         # outf = open(TotFile, 'r')
 #         data1 = read_table(
@@ -1169,7 +1181,7 @@ def TieTimes(sta1, sta2, dirConFilePath=None, freq=None, tie=[None, None, None])
 #         data2["disp"] -= const[0][axes - 1] / 1000
 #         data = pd.concat([data1, data2])
 #
-#         outfile = os.path.join(TotPath, "mb_%s_%s.dat%s" % (sta2, "JON", axes))
+#         outfile = os.path.join(TotDir, "mb_%s_%s.dat%s" % (sta2, "JON", axes))
 #         data.to_csv(outfile, sep="\t", index=True, header=False)
 
 
@@ -1331,7 +1343,6 @@ def detrend(
     Dy=None,
     fitfunc=lineperiodic,
     p=None,
-    pcov=None,
     STA=None,
     onlyPeriodic=True,
     zref=False,
@@ -1372,13 +1383,13 @@ def detrend(
         else:
             p0 = [None, None, None]
 
-        p, pcov = fittimes(fitfunc, x, y, Dy, p0=p0)
+        p, _ = fittimes(fitfunc, x, y, Dy, p0=p0)
 
     for i in range(3):
         y[i] = y[i] - fitfunc(x, *p[i])
 
     if zref:
-        _, y, _ = gdrgps.vshift(x, y, Dy, uncert=20.0, refdate=None, Period=5)
+        _, y, _, _ = vshift(x, y, Dy, uncert=20.0, refdate=None, Period=5)
 
     return y
 
@@ -1555,7 +1566,13 @@ def filt_outl(yearf, data, Ddata, pb, errfunc, outlier):
 
 
 def gamittoNEU(
-    sta, mm=False, ref="plate", dstring=None, reference="ITRF2008", Dir=None
+    sta,
+    mm=False,
+    ref="plate",
+    dstring=None,
+    reference="ITRF2008",
+    Dir=None,
+    rhour=False,
 ):
     """
     This function convert a gamit time series to a single np.array with readable time tag.
@@ -1593,10 +1610,10 @@ def gamittoNEU(
         data = data * 1000
         Ddata = Ddata * 1000
 
-    return gtoNEU(yearf, data, Ddata, dstring=dstring)
+    return gtoNEU(yearf, data, Ddata, dstring=dstring, rhour=rhour)
 
 
-def gtoNEU(yearf, data, Ddata, dstring=None):
+def gtoNEU(yearf, data, Ddata, dstring=None, rhour=False):
     """
     This function converts a gamit time series to a single np.array with readable time tag.
 
@@ -1630,8 +1647,7 @@ def gtoNEU(yearf, data, Ddata, dstring=None):
             ],
         )
     else:
-        yearf = [round_to_hour(dt) for dt in convfromYearf(yearf, dstring)]
-
+        yearf = convfromYearf(yearf, dstring, rhour=rhour)
         NEUdata = np.array(
             list(zip(yearf, data[0], data[1], data[2], Ddata[0], Ddata[1], Ddata[2])),
             dtype=[
@@ -1661,6 +1677,7 @@ def read_gps_data(
     useSTA=None,
     useFIT=None,
     uncert=20.0,
+    detrendFile="",
     logging_level=logging.WARNING,
 ):
     """
@@ -1680,7 +1697,7 @@ def read_gps_data(
         fit: fit. Default=False
         detrend_period: detrend period. Default=[None, None]
         useSTA: works in conjunction with useFIT to get the fit. Default=None
-        useFIT: useFIT from another station. Default=None
+        useFIT: useFIT from another station. Default= "periodic"
         uncert: Maximum uncertainty of the data. Default=20.0
         logging_level: logging level. Default=logging.WARNING
 
@@ -1703,17 +1720,18 @@ def read_gps_data(
     syearf, sdata, sDdata = yearf, data, Ddata
 
     # NOTE: detrending needs to be revised.
-    const = getDetrFit(sta, useSTA=useSTA, useFIT=useFIT)
+
+    const = getDetrFit(sta, useSTA=useSTA, useFIT=useFIT, detrendFile=detrendFile)
     p0 = convconst(const)
     pb = p0.copy()
 
     module_logger.info("Fitting constants:\n {}".format(p0))
     if not np.all([p0[i][1:].dtype if p0[i] is not None else False for i in range(3)]):
-        module_logger.info("Setting fit to lineperiodic")
+        module_logger.warning("Setting fit to lineperiodic")
         fit = "lineperiodic"
 
     if useFIT == "periodic":
-        module_logger.info(
+        module_logger.warning(
             '"{}" parameters from {} used in {}'.format(
                 const["Fit"].values[0], const["useSTA"].values[0], sta
             )
@@ -1733,7 +1751,7 @@ def read_gps_data(
         module_logger.info("Fitting =====================")
         if len(syearf) == 0:
             module_logger.warning(
-                "No data for interval {}-{} try using the whole time series".format(
+                "No data for interval {}-{} will try using the whole time series".format(
                     *detrend_period
                 )
             )
@@ -1773,7 +1791,7 @@ def read_gps_data(
             module_logger.debug("Fitt parameters: {}".format(pc))
             data = detrend(yearf, data.copy(), Ddata, fitfunc=line, p=pc)
     else:
-        module_logger.warn("Fitt parameters are unknown pb={}".format(pb))
+        module_logger.warning("Fitt parameters are unknown pb={}".format(pb))
         if detrend_periodic or detrend_line:
             module_logger.warning(
                 "Will try to estimate the parameters based the whole dataset and detrend"
@@ -1973,5 +1991,5 @@ def __converter(x):
 
     # if x == '********':
     #    return np.nan
-    # else:
     #    return float(x)
+    # else:

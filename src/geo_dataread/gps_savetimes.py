@@ -82,7 +82,9 @@ def main():
                 outFile = sys.stdout
 
             print(f"writing to {outFile} ")
-            gpsr.gamittooneuf(sta, outFile, mm=meters, ref=ref, dstring=tformat)
+            gpsr.gamittooneuf(
+                sta, outFile, mm=meters, ref=ref, dstring=tformat, rhour=True
+            )
             # print "Time series of  %s using: %s, %s" % (sta, kwargs['ref'], kwargs['special'])
 
         except (IndexError, TypeError) as e:
