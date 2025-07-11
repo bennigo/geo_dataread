@@ -9,12 +9,21 @@ authors = [
 ]
 maintainers = [{ name = "Benedikt Gunnar Ófeigsson", email = "bgo@vedur.is" }]
 requires-python = ">=3.13"
-dependencies = []
+dependencies = [
+    "geofunc@git+https://github.com/bennigo/geofunc.git",
+    "gps_parser@git+https://github.com/bennigo/gps_parser.git",
+    # "gtimes@git+https://github.com/bennigo/gtimes.git"
+    "pyproj>=3.7.1",
+    "scipy>=1.16.0",
+]
 
 [project.scripts]
 geo-dataread = "geo_dataread:main"
 gps-savetimes = "geo_dataread.gps_savetimes:main"
 gps-displacemnts = "geo_dataread.gps_displ:main"
+
+[tool.hatch.metadata]
+allow-direct-references = true
 
 [build-system]
 requires = ["hatchling"]
